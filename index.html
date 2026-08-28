@@ -1014,7 +1014,13 @@ h1.main-title{text-shadow:0 0 60px rgba(124,58,237,.3);}
     <div class="logo-badge" id="mode-nivel-badge">3N</div>
     <h1 class="main-title" style="font-size:28px;">¿Cómo querés practicar?</h1>
   </div>
+  <div id="mode-stats" style="display:none;gap:12px;flex-wrap:wrap;justify-content:center;margin:-4px 0 20px;font-size:13px;font-weight:800;color:var(--sub);"></div>
   <div class="mode-cards">
+    <div class="mode-card" id="repaso-card" style="border-color:rgba(6,182,212,.45);display:none;" onclick="startRepaso()">
+      <div class="mode-card-icon">🔁</div>
+      <div class="mode-card-title">Repaso de errores</div>
+      <div class="mode-card-desc" id="repaso-desc">Volvé sobre las preguntas que fallaste</div>
+    </div>
     <div class="mode-card" onclick="startMode('random')">
       <div class="mode-card-icon">🎲</div>
       <div class="mode-card-title">Aleatorio</div>
@@ -1319,6 +1325,53 @@ let state = {
   currentEje: null, currentSkill: null
 };
 
+// ===================== PERSISTENCIA (localStorage) =====================
+const Persist = (function(){
+  const KEY = 'alPractica_v1';
+  let db = { answered:0, correct:0, bestStreak:0, perCtx:{}, wrong:{} };
+  try {
+    const raw = localStorage.getItem(KEY);
+    if(raw){ const p = JSON.parse(raw);
+      if(p && typeof p === 'object'){
+        db = Object.assign(db, p);
+        db.perCtx = db.perCtx || {}; db.wrong = db.wrong || {};
+      }
+    }
+  } catch(e){}
+  function save(){ try{ localStorage.setItem(KEY, JSON.stringify(db)); }catch(e){} }
+  function qid(track, nivel, q){
+    const base = track + '|' + nivel + '|' + (q.question || '');
+    let h = 0; for(let i=0;i<base.length;i++){ h = (h*31 + base.charCodeAt(i))|0; }
+    return track + '_' + nivel + '_' + (h>>>0).toString(36);
+  }
+  return {
+    record(q, isCorrect, nivel, track){
+      if(!nivel) return;
+      db.answered++;
+      const ck = track + '|' + nivel;
+      const c = db.perCtx[ck] || (db.perCtx[ck] = {answered:0, correct:0});
+      c.answered++;
+      const id = qid(track, nivel, q);
+      if(isCorrect){
+        db.correct++; c.correct++;
+        if(db.wrong[id]) delete db.wrong[id];
+      } else {
+        db.wrong[id] = { question:q.question, options:q.options, correct:q.correct,
+                         skill:q.skill, eje:q.eje, nivel:nivel, track:track, ts:Date.now() };
+      }
+      save();
+    },
+    bumpStreak(streak){ if(streak > db.bestStreak){ db.bestStreak = streak; save(); } },
+    getWrong(track, nivel){
+      return Object.values(db.wrong).filter(w => w.track===track && w.nivel===nivel);
+    },
+    wrongCount(track, nivel){ return this.getWrong(track, nivel).length; },
+    ctx(track, nivel){ return db.perCtx[track+'|'+nivel] || {answered:0, correct:0}; },
+    get bestStreak(){ return db.bestStreak; },
+    reset(){ db = { answered:0, correct:0, bestStreak:0, perCtx:{}, wrong:{} }; save(); }
+  };
+})();
+
 // ===================== NAVIGATION =====================
 function goTo(screenId) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
@@ -1328,6 +1381,7 @@ function goTo(screenId) {
   const homeBtn = document.getElementById('home-btn');
   const _topScreens=['s-landing','s-mat-choice'];
   if(homeBtn) homeBtn.classList.toggle('hidden', _topScreens.includes(screenId));
+  if(screenId==='mode-screen'){ try{ updateModeScreen(); }catch(e){} }
 }
 
 function goHome() {
@@ -1418,9 +1472,39 @@ function retryMode() {
   const m = state.mode;
   const eje = state.currentEje;
   const sk = state.currentSkill;
-  if(m === 'eje') startEjeMode(eje);
+  if(m === 'repaso') startRepaso();
+  else if(m === 'eje') startEjeMode(eje);
   else if(m === 'skill') startSkillMode(sk);
   else startMode(m);
+}
+
+function _curTrack(){ return (typeof amcMode!=='undefined' && amcMode) ? 'AMC' : 'META'; }
+function updateModeScreen(){
+  const nivel = state.nivel; if(!nivel) return;
+  const track = _curTrack();
+  const wc = Persist.wrongCount(track, nivel);
+  const card = document.getElementById('repaso-card');
+  const desc = document.getElementById('repaso-desc');
+  if(card){
+    if(wc > 0){ card.style.display=''; if(desc) desc.textContent = `${wc} pregunta${wc===1?'':'s'} para repasar`; }
+    else card.style.display='none';
+  }
+  const ctx = Persist.ctx(track, nivel);
+  const strip = document.getElementById('mode-stats');
+  if(strip){
+    if(ctx.answered > 0){
+      const pct = Math.round((ctx.correct/ctx.answered)*100);
+      strip.style.display='flex';
+      strip.innerHTML = `<span>📊 ${ctx.correct}/${ctx.answered} correctas (${pct}%)</span><span>🔥 Mejor racha: ${Persist.bestStreak}</span>`;
+    } else strip.style.display='none';
+  }
+}
+function startRepaso(){
+  const track = _curTrack();
+  const pool = Persist.getWrong(track, state.nivel);
+  if(!pool.length){ alert('Todavía no tenés errores guardados en este nivel. Practicá un poco y las preguntas que falles van a aparecer acá para repasar.'); return; }
+  state.mode = 'repaso';
+  launchQuiz(shuffle(pool.map(q => ({...q}))), 'repaso');
 }
 
 // ===================== QUIZ ENGINE =====================
@@ -1497,6 +1581,7 @@ function selectAnswer(letter, btn, q) {
   if(state.answered) return;
   state.answered = true;
   const isCorrect = letter === q.correct;
+  try { Persist.record(q, isCorrect, state.nivel, (typeof amcMode!=='undefined'&&amcMode)?'AMC':'META'); } catch(e){}
 
   // Disable all
   document.querySelectorAll('.option-btn').forEach(b => { b.disabled = true; });
@@ -1505,6 +1590,7 @@ function selectAnswer(letter, btn, q) {
     btn.classList.add('correct');
     state.correct++;
     state.streak++;
+    try { Persist.bumpStreak(state.streak); } catch(e){}
   } else {
     btn.classList.add('wrong');
     state.wrong++;
@@ -2074,7 +2160,8 @@ const _origRetryMode = retryMode;
 retryMode = function() {
   if(!amcMode) { _origRetryMode(); return; }
   const m = state.mode, eje = state.currentEje, sk = state.currentSkill;
-  if(m==='eje') startAMCEjeMode(eje);
+  if(m==='repaso') startRepaso();
+  else if(m==='eje') startAMCEjeMode(eje);
   else if(m==='skill') startAMCSkillMode(sk);
   else startAMCMode(m);
 };
