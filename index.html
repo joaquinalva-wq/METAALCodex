@@ -1014,44 +1014,46 @@ h1.main-title{text-shadow:0 0 60px rgba(124,58,237,.3);}
     <div class="logo-badge" id="mode-nivel-badge">3N</div>
     <h1 class="main-title" style="font-size:28px;">¿Cómo querés practicar?</h1>
   </div>
-  <div id="mode-stats" style="display:none;gap:12px;flex-wrap:wrap;justify-content:center;margin:-4px 0 20px;font-size:13px;font-weight:800;color:var(--sub);"></div>
-  <div class="mode-cards">
-    <div class="mode-card" id="repaso-card" style="border-color:rgba(6,182,212,.45);display:none;" onclick="startRepaso()">
-      <div class="mode-card-icon">🔁</div>
-      <div class="mode-card-title">Repaso de errores</div>
-      <div class="mode-card-desc" id="repaso-desc">Volvé sobre las preguntas que fallaste</div>
+  <div id="mode-stats" style="display:none;gap:12px;flex-wrap:wrap;justify-content:center;margin:-4px 0 16px;font-size:13px;font-weight:800;color:var(--sub);"></div>
+  <div id="repaso-banner" onclick="startRepaso()" style="display:none;align-items:center;gap:14px;width:100%;max-width:700px;margin:0 0 18px;padding:14px 18px;border:1.5px solid rgba(6,182,212,.5);border-radius:16px;background:rgba(6,182,212,.08);cursor:pointer;box-sizing:border-box;">
+    <span style="font-size:26px;line-height:1;">🔁</span>
+    <div style="text-align:left;">
+      <div style="font-weight:900;font-size:15px;color:var(--text);">Repaso de errores</div>
+      <div id="repaso-desc" style="font-size:12px;color:var(--sub);font-weight:600;margin-top:2px;">Volvé sobre las preguntas que fallaste</div>
     </div>
-    <div class="mode-card" onclick="startMode('random')">
+  </div>
+  <div class="mode-cards">
+    <div class="mode-card" data-mode="random" onclick="startMode('random')">
       <div class="mode-card-icon">🎲</div>
       <div class="mode-card-title">Aleatorio</div>
       <div class="mode-card-desc">Preguntas mezcladas de todos los ejes</div>
     </div>
-    <div class="mode-card" onclick="goTo('eje-screen')">
+    <div class="mode-card" data-mode="eje" onclick="goTo('eje-screen')">
       <div class="mode-card-icon">📚</div>
       <div class="mode-card-title">Por Eje</div>
       <div class="mode-card-desc">Elegí un eje temático para practicar</div>
     </div>
-    <div class="mode-card" onclick="goTo('skill-screen')">
+    <div class="mode-card" data-mode="skill" onclick="goTo('skill-screen')">
       <div class="mode-card-icon">🎯</div>
       <div class="mode-card-title">Por Habilidad</div>
       <div class="mode-card-desc">Entrenate por tipo de ejercicio</div>
     </div>
-    <div class="mode-card gold" onclick="startMode('examen')">
+    <div class="mode-card gold" data-mode="examen" onclick="startMode('examen')">
       <div class="mode-card-icon">📝</div>
       <div class="mode-card-title">Modelo Examen</div>
       <div class="mode-card-desc">Simulacro completo como el día del examen</div>
     </div>
-    <div class="mode-card danger" onclick="startMode('muerte')">
+    <div class="mode-card danger" data-mode="muerte" onclick="startMode('muerte')">
       <div class="mode-card-icon">💀</div>
       <div class="mode-card-title">Muerte Súbita</div>
       <div class="mode-card-desc">Un error y volvés a empezar. ¿Te animás?</div>
     </div>
-    <div class="mode-card" style="border-color:rgba(16,185,129,.35);" onclick="goTo('comp-names-screen')">
+    <div class="mode-card" data-mode="comp" style="border-color:rgba(16,185,129,.35);" onclick="goTo('comp-names-screen')">
       <div class="mode-card-icon">🎰</div>
       <div class="mode-card-title">Competencia</div>
       <div class="mode-card-desc">2 jugadores · 1 dispositivo · Ruleta + preguntas · Primero en 10 gana</div>
     </div>
-    <div class="mode-card" style="border-color:rgba(168,85,247,.35);" onclick="goTo('tiempo-intro-screen')">
+    <div class="mode-card" data-mode="tiempo" style="border-color:rgba(168,85,247,.35);" onclick="goTo('tiempo-intro-screen')">
       <div class="mode-card-icon">⏱️</div>
       <div class="mode-card-title">Práctica por Tiempo</div>
       <div class="mode-card-desc">10 preguntas · 2 minutos por pregunta · El reloj corre</div>
@@ -1483,10 +1485,10 @@ function updateModeScreen(){
   const nivel = state.nivel; if(!nivel) return;
   const track = _curTrack();
   const wc = Persist.wrongCount(track, nivel);
-  const card = document.getElementById('repaso-card');
+  const card = document.getElementById('repaso-banner');
   const desc = document.getElementById('repaso-desc');
   if(card){
-    if(wc > 0){ card.style.display=''; if(desc) desc.textContent = `${wc} pregunta${wc===1?'':'s'} para repasar`; }
+    if(wc > 0){ card.style.display='flex'; if(desc) desc.textContent = `${wc} pregunta${wc===1?'':'s'} para repasar`; }
     else card.style.display='none';
   }
   const ctx = Persist.ctx(track, nivel);
@@ -2223,32 +2225,13 @@ selectAMCNivel = function(n) {
     }
     const h1 = document.querySelector('#mode-screen h1.main-title');
     if(h1) h1.textContent = '¿Cómo querés entrenar?';
-    // Update each mode card text
-    const cards = document.querySelectorAll('#mode-screen .mode-card');
-    if(cards.length >= 7) {
-      const titles = cards[0].querySelector('.mode-card-title');
-      const descs  = cards[0].querySelector('.mode-card-desc');
-      if(titles) titles.textContent = AMC_MODE_LABELS.random[0];
-      if(descs)  descs.textContent  = AMC_MODE_LABELS.random[1];
-
-      const t1=cards[1].querySelector('.mode-card-title'), d1=cards[1].querySelector('.mode-card-desc');
-      if(t1) t1.textContent=AMC_MODE_LABELS.eje[0]; if(d1) d1.textContent=AMC_MODE_LABELS.eje[1];
-
-      const t2=cards[2].querySelector('.mode-card-title'), d2=cards[2].querySelector('.mode-card-desc');
-      if(t2) t2.textContent=AMC_MODE_LABELS.skill[0]; if(d2) d2.textContent=AMC_MODE_LABELS.skill[1];
-
-      const t3=cards[3].querySelector('.mode-card-title'), d3=cards[3].querySelector('.mode-card-desc');
-      if(t3) t3.textContent=AMC_MODE_LABELS.examen[0]; if(d3) d3.textContent=AMC_MODE_LABELS.examen[1];
-
-      const t4=cards[4].querySelector('.mode-card-title'), d4=cards[4].querySelector('.mode-card-desc');
-      if(t4) t4.textContent=AMC_MODE_LABELS.muerte[0]; if(d4) d4.textContent=AMC_MODE_LABELS.muerte[1];
-
-      const t5=cards[5].querySelector('.mode-card-title'), d5=cards[5].querySelector('.mode-card-desc');
-      if(t5) t5.textContent=AMC_MODE_LABELS.comp[0]; if(d5) d5.textContent=AMC_MODE_LABELS.comp[1];
-
-      const t6=cards[6].querySelector('.mode-card-title'), d6=cards[6].querySelector('.mode-card-desc');
-      if(t6) t6.textContent=AMC_MODE_LABELS.tiempo[0]; if(d6) d6.textContent=AMC_MODE_LABELS.tiempo[1];
-    }
+    // Update each mode card text (mapeado por data-mode, no por indice)
+    document.querySelectorAll('#mode-screen .mode-card[data-mode]').forEach(c => {
+      const lbl = AMC_MODE_LABELS[c.getAttribute('data-mode')];
+      if(!lbl) return;
+      const t=c.querySelector('.mode-card-title'), d=c.querySelector('.mode-card-desc');
+      if(t) t.textContent=lbl[0]; if(d) d.textContent=lbl[1];
+    });
   }, 50);
 };
 
@@ -2263,21 +2246,20 @@ selectNivel = function(n) {
     }
     const h1 = document.querySelector('#mode-screen h1.main-title');
     if(h1) h1.textContent = '¿Cómo querés practicar?';
-    const cards = document.querySelectorAll('#mode-screen .mode-card');
-    const META_TITLES = ['Aleatorio','Por Eje','Por Habilidad','Modelo Examen','Muerte Súbita','Competencia','Práctica por Tiempo'];
-    const META_DESCS  = [
-      'Preguntas mezcladas de todos los ejes',
-      'Elegí un eje temático para practicar',
-      'Entrenate por tipo de ejercicio',
-      'Simulacro completo como el día del examen',
-      'Un error y volvés a empezar. ¿Te animás?',
-      '2 jugadores · 1 dispositivo · Ruleta + preguntas · Primero en 10 gana',
-      '10 preguntas · 2 minutos por pregunta · El reloj corre'
-    ];
-    cards.forEach((c,i) => {
+    const META_MODE_LABELS = {
+      random: ['Aleatorio','Preguntas mezcladas de todos los ejes'],
+      eje:    ['Por Eje','Elegí un eje temático para practicar'],
+      skill:  ['Por Habilidad','Entrenate por tipo de ejercicio'],
+      examen: ['Modelo Examen','Simulacro completo como el día del examen'],
+      muerte: ['Muerte Súbita','Un error y volvés a empezar. ¿Te animás?'],
+      comp:   ['Competencia','2 jugadores · 1 dispositivo · Ruleta + preguntas · Primero en 10 gana'],
+      tiempo: ['Práctica por Tiempo','10 preguntas · 2 minutos por pregunta · El reloj corre'],
+    };
+    document.querySelectorAll('#mode-screen .mode-card[data-mode]').forEach(c => {
+      const lbl = META_MODE_LABELS[c.getAttribute('data-mode')];
+      if(!lbl) return;
       const t=c.querySelector('.mode-card-title'), d=c.querySelector('.mode-card-desc');
-      if(t && META_TITLES[i]) t.textContent=META_TITLES[i];
-      if(d && META_DESCS[i])  d.textContent=META_DESCS[i];
+      if(t) t.textContent=lbl[0]; if(d) d.textContent=lbl[1];
     });
   }, 50);
 };
